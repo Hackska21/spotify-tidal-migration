@@ -1,4 +1,9 @@
-from secrets import tidal_id, tidal_id_2, tidal_username, tidal_username_2, tidal_pwd, tidal_pwd_2, spotify_id, spotify_id_2, spotify_username, spotify_username_2, spotify_discover_weekly_id, SPOTIPY_CLIENT_ID, SPOTIPY_CLIENT_SECRET, SPOTIPY_REDIRECT_URI
+import json
+import logging
+
+from secrets import tidal_id, tidal_id_2, tidal_username, tidal_username_2, tidal_pwd, tidal_pwd_2, spotify_id, \
+    spotify_id_2, spotify_username, spotify_username_2, spotify_discover_weekly_id, SPOTIPY_CLIENT_ID, \
+    SPOTIPY_CLIENT_SECRET, SPOTIPY_REDIRECT_URI
 import requests
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
@@ -21,6 +26,7 @@ from pprint import pprint
 # MIGRATE SPOTIFY ACCOUNT = COPY PLAYLISTS + SAVED TRACKS
 # copy_spotify_playlists_to_another_spotify_account()
 # copy_spotify_saved_tracks_to_another_spotify_account()
+logger = logging.getLogger(__name__)
 
 # Endpoints not in tidalapi
 def get_tidal_create_playlist_url(tidal_id):
@@ -62,7 +68,22 @@ def connect_to_spotify():
 def connect_to_tidal(tidal_username, tidal_pwd):
     tidal_session = tidalapi.Session()
     try:
-        tidal_session.login(tidal_username, tidal_pwd)
+        # tidal_session.login(tidal_username, tidal_pwd)
+        # login, future = tidal_session.login_oauth()
+        print("jelou")
+        tidal_session.login_oauth_simple()
+
+        oauth_file = 'tida-sesi'
+        if tidal_session.check_login():
+            # store current OAuth session
+            data = {}
+            data['token_type'] = {'data': tidal_session.token_type}
+            data['session_id'] = {'data': tidal_session.session_id}
+            data['access_token'] = {'data': tidal_session.access_token}
+            data['refresh_token'] = {'data': tidal_session.refresh_token}
+            with open(oauth_file, 'w') as outfile:
+                json.dump(data, outfile)
+        dummy = 0
     except requests.exceptions.HTTPError as e:
         print("Can't login to tidal for username=" + tidal_username + ", password=" + tidal_pwd)
         sys.exit()
@@ -239,18 +260,15 @@ def _add_tracks_to_tidal_playlist(playlist_id, tracks, tidal_session):
 
 def get_tidal_old_playlists(tidal_id, tidal_session):
     try:
-        r = requests.request(
+        r = tidal_session.request.request(
             'GET',
             get_tidal_user_playlists(tidal_id),
-            headers={
-                'x-tidal-sessionid': tidal_session.session_id,
-                'if-none-match': '*'
-            },
             params={
                 'countryCode': 'US',
                 'limit': 999
             }
         )
+        # playlist = tidal_session.user.create_playlist("Example playlist", "An example of a playlist")
         playlists = [item['title'] for item in r.json()['items']]
     except requests.exceptions.RequestException as e:
         print("Could not get list of playlists")
@@ -260,7 +278,7 @@ def get_tidal_old_playlists(tidal_id, tidal_session):
 
 
 def _search_for_track_on_tidal(name, artist):
-    id = -1;
+    id = -1
     artist = artist.lower()
 
     def _artist_in_response(track):
@@ -360,7 +378,7 @@ def copy_spotify_playlists_to_another_spotify_account():
                         playlists_owner_ids.append(item['owner']['id'])
                         playlists_ids.append(item['id'])
         scope_2 = 'playlist-modify-public'
-	print("LOGIN WITH DESTINATION SPOTIFY ACCOUNT (TO COPY TO) (" + spotify_username_2 + ")")
+        print("LOGIN WITH DESTINATION SPOTIFY ACCOUNT (TO COPY TO) (" + spotify_username_2 + ")")
         token_2 = util.prompt_for_user_token(spotify_username_2, scope_2)
 
         if token_2:
@@ -391,31 +409,35 @@ def copy_spotify_saved_tracks_to_another_spotify_account():
                 for item in r['items']:
                      tracks_ids.append(item['track']['id'])
         scope_2 = 'user-library-modify'
-	print("LOGIN WITH DESTINATION SPOTIFY ACCOUNT (TO COPY TO) (" + spotify_username_2 + ")")
+        print("LOGIN WITH DESTINATION SPOTIFY ACCOUNT (TO COPY TO) (" + spotify_username_2 + ")")
         token_2 = util.prompt_for_user_token(spotify_username_2, scope_2)
         if token_2:
                sp_2 = spotipy.Spotify(auth=token_2)
                sp_2.trace = False
                i=len(tracks_ids)-1
                for track_id in tracks_ids:
-			sp_2.current_user_saved_tracks_add([tracks_ids[i]])
-			i-=1
-			#sleep needed to preserve tracks "chronological order". Apparently 0.5s is not enough
-			time.sleep(1)
+                   sp_2.current_user_saved_tracks_add([tracks_ids[i]])
+                   i -= 1
+                   # sleep needed to preserve tracks "chronological order". Apparently 0.5s is not enough
+                   time.sleep(1)
         else:
-                print("Can't get token for " + spotify_username_2)
+            print("Can't get token for " + spotify_username_2)
     else:
         print("Can't get token for " + spotify_username)
 
+
 start = time.time()
-#sp, sp_token = connect_to_spotify() #NEEDED ONLY FOR MOVING FROM SPOTIFY TO TIDAL
-#tidal_session = connect_to_tidal(tidal_username, tidal_pwd) #NEEDED ONLY FOR 1) MOVING FROM SPOTIFY TO TIDAL 2) MOVING FROM TIDAL1 TO TIDAL2
-#tidal_session_2 = connect_to_tidal(tidal_username_2, tidal_pwd_2) #NEEDED ONLY FOR MOVING FROM TIDAL1 TO TIDAL2
+sp, sp_token = connect_to_spotify()  # NEEDED ONLY FOR MOVING FROM SPOTIFY TO TIDAL
+
+tidal_session = connect_to_tidal(tidal_username,
+                                 tidal_pwd)  # NEEDED ONLY FOR 1) MOVING FROM SPOTIFY TO TIDAL 2) MOVING FROM TIDAL1 TO TIDAL2
+# tidal_session_2 = connect_to_tidal(tidal_username_2, tidal_pwd_2) #NEEDED ONLY FOR MOVING FROM TIDAL1 TO TIDAL2
 # move_discover_weekly_from_spotify_to_tidal()
-#move_all_spotify_playlists_to_tidal()
-#copy_tidal_playlists_to_another_tidal_account()
-#MIGRATE SPOTIFY ACCOUNT = COPY PLAYLISTS + SAVED TRACKS
-copy_spotify_playlists_to_another_spotify_account()
-copy_spotify_saved_tracks_to_another_spotify_account()
+
+move_all_spotify_playlists_to_tidal()
+# copy_tidal_playlists_to_another_tidal_account()
+# MIGRATE SPOTIFY ACCOUNT = COPY PLAYLISTS + SAVED TRACKS
+# copy_spotify_playlists_to_another_spotify_account()
+# copy_spotify_saved_tracks_to_another_spotify_account()
 end = time.time()
-print("Time elapsed: " + str(end - start) + " s (" + str((end-start)/60) + " min)")
+print("Time elapsed: " + str(end - start) + " s (" + str((end - start) / 60) + " min)")

@@ -2,3 +2,7 @@ secrets.py
 venv/
 .DS_Store
 *.pyc
+/user_data/
+/tidal_session_*
+/.cache-*
+/.idea/
